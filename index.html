@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOM Change Reference Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-6">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+            <h1 class="text-2xl font-bold text-slate-800">ZEN BOM Form Generator</h1>
+            <p class="text-slate-500 text-sm mt-1">Nesta, ErNesta & Ziggy BOM Management Tool</p>
+        </div>
+
+        <!-- Step 0: File Upload -->
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+            <h2 class="text-lg font-semibold text-slate-800 mb-4">1. Load Master BOMs</h2>
+            <div class="flex items-center gap-4">
+                <input type="file" id="csvFiles" multiple accept=".csv" class="block w-full text-sm text-slate-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100
+                "/>
+                <div id="fileStatus" class="text-sm font-medium text-slate-400">No files loaded</div>
+            </div>
+            <p class="text-xs text-slate-400 mt-2">Save latest BOM sheet as .csv file. And Upload .csv file here.</p>
+        </div>
+
+        <!-- Step 1: Change Type Selection -->
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 opacity-50 pointer-events-none" id="operationSection">
+            <h2 class="text-lg font-semibold text-slate-800 mb-4">2. Select Change Type</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Type of Change</label>
+                    <select id="changeType" class="w-full border-slate-300 rounded-md shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">-- Select an Option --</option>
+                        <option value="1to1"> 1) 1-to-1 Part Number Change</option>
+                        <option value="sameQtyAll"> 2) Same Usage Qty update for all</option>
+                        <option value="sameQtySelect"> 3) Same Usage Qty update for selected SKUs</option>
+                        <option value="diffQtySelect"> 4) Different Usage Qty update by selected SKUs</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Dynamic Input Forms -->
+            <div id="inputForms" class="border-t pt-4">
+                
+                <!-- Form: 1-to-1 -->
+                <div id="form-1to1" class="hidden space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase">Old Part Number</label>
+                            <input type="text" id="oldPartNum" class="w-full mt-1 p-2 border rounded-md" placeholder="e.g. X4D20AC">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase">New Part Number</label>
+                            <input type="text" id="newPartNum" class="w-full mt-1 p-2 border rounded-md" placeholder="e.g. NEW-PART-001">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase">New Description</label>
+                            <input type="text" id="newDesc" class="w-full mt-1 p-2 border rounded-md" placeholder="e.g. New Component Description">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form: Same Qty All -->
+                <div id="form-sameQtyAll" class="hidden space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase">Part Number</label>
+                            <input type="text" id="sqPartNum" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase">New Usage Qty</label>
+                            <input type="number" step="any" id="sqNewQty" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form: Same Qty Selected SKUs -->
+                <div id="form-sameQtySelect" class="hidden space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase">Part Number</label>
+                            <input type="text" id="sqsPartNum" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase">New Usage Qty</label>
+                            <input type="number" step="any" id="sqsNewQty" class="w-full mt-1 p-2 border rounded-md">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase">Affected SKUs (L0)</label>
+                        <p class="text-xs text-slate-400 mb-1">Enter SKUs separated by commas or new lines</p>
+                        <textarea id="sqsSkus" class="w-full h-24 mt-1 p-2 border rounded-md font-mono text-sm" placeholder="SKU1&#10;SKU2"></textarea>
+                    </div>
+                </div>
+
+                <!-- Form: Different Qty Selected SKUs -->
+                <div id="form-diffQtySelect" class="hidden space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase">Part Number</label>
+                        <input type="text" id="dqsPartNum" class="w-full mt-1 p-2 border rounded-md max-w-md">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase">Affected SKU & New Qty Mapping</label>
+                        <p class="text-xs text-slate-400 mb-1">Copy and paste from Excel (Two columns: SKU, then Qty)</p>
+                        <textarea id="dqsMapping" class="w-full h-32 mt-1 p-2 border rounded-md font-mono text-sm" placeholder="Affected SKU1	20&#10;Affected SKU2	23"></textarea>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <button id="generateBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md shadow transition-colors">
+                        Generate Reference Table
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Output Section -->
+        <div id="outputSection" class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-slate-800">Generated BOM Reference</h2>
+                <button onclick="downloadCSV()" class="text-sm bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Export to CSV
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto border rounded-lg">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Parent</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Description</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Plant</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">BOM_USAGE</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">ALTERNATIVE</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">ACTION</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">COMPONENT</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Comp Desc</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">COMP_QTY</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">COMP_UNIT</th>
+                            <th class="px-3 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">BASE_QUAN</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultTableBody" class="bg-white divide-y divide-slate-200 text-sm text-slate-700">
+                        <!-- Rows will go here -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="noResultsMsg" class="hidden text-center py-8 text-slate-500">No matching records found in the BOMs.</div>
+        </div>
+
+    </div>
+
+<script>
+    // --- Data Store ---
+    let masterBOM = [];
+    let generatedData = [];
+
+    // --- Config ---
+    const PLANT_VAL = "SG5F - MFG PLT and 01FT - CST PLT";
+    const USAGE_VAL = "3";
+
+    // --- DOM Elements ---
+    const fileInput = document.getElementById('csvFiles');
+    const fileStatus = document.getElementById('fileStatus');
+    const opSection = document.getElementById('operationSection');
+    const changeTypeSelect = document.getElementById('changeType');
+    const generateBtn = document.getElementById('generateBtn');
+    
+    // Forms
+    const forms = {
+        '1to1': document.getElementById('form-1to1'),
+        'sameQtyAll': document.getElementById('form-sameQtyAll'),
+        'sameQtySelect': document.getElementById('form-sameQtySelect'),
+        'diffQtySelect': document.getElementById('form-diffQtySelect')
+    };
+
+    // --- Event Listeners ---
+    fileInput.addEventListener('change', handleFileUpload);
+    changeTypeSelect.addEventListener('change', handleTypeChange);
+    generateBtn.addEventListener('click', generateReport);
+
+    // --- Functions ---
+
+    function handleFileUpload(e) {
+        const files = e.target.files;
+        if (!files.length) return;
+
+        fileStatus.innerText = "Processing " + files.length + " files...";
+        masterBOM = []; // Reset
+        let filesProcessed = 0;
+
+        Array.from(files).forEach(file => {
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    // Standardize keys to uppercase to handle 'Child' vs 'CHILD'
+                    const standardizedData = results.data.map(row => {
+                        const newRow = {};
+                        Object.keys(row).forEach(key => {
+                            newRow[key.trim().toUpperCase()] = row[key];
+                        });
+                        return newRow;
+                    });
+                    
+                    masterBOM = masterBOM.concat(standardizedData);
+                    filesProcessed++;
+                    
+                    if(filesProcessed === files.length) {
+                        fileStatus.innerText = `Loaded ${masterBOM.length} rows from ${files.length} files.`;
+                        fileStatus.classList.remove('text-slate-400');
+                        fileStatus.classList.add('text-green-600');
+                        opSection.classList.remove('opacity-50', 'pointer-events-none');
+                    }
+                }
+            });
+        });
+    }
+
+    function handleTypeChange(e) {
+        const val = e.target.value;
+        // Hide all forms
+        Object.values(forms).forEach(f => f.classList.add('hidden'));
+        
+        if (val && forms[val]) {
+            forms[val].classList.remove('hidden');
+        }
+    }
+
+    function generateReport() {
+        const type = changeTypeSelect.value;
+        if (!type) return alert("Please select a change type.");
+
+        generatedData = [];
+        const tableBody = document.getElementById('resultTableBody');
+        tableBody.innerHTML = '';
+        document.getElementById('outputSection').classList.remove('hidden');
+        document.getElementById('noResultsMsg').classList.add('hidden');
+
+        // Execute logic based on type
+        if (type === '1to1') run1to1();
+        else if (type === 'sameQtyAll') runSameQtyAll();
+        else if (type === 'sameQtySelect') runSameQtySelect();
+        else if (type === 'diffQtySelect') runDiffQtySelect();
+
+        // Render
+        if (generatedData.length === 0) {
+            document.getElementById('noResultsMsg').classList.remove('hidden');
+            return;
+        }
+
+        generatedData.forEach(row => {
+            const tr = document.createElement('tr');
+            // Helper to handle undefined values safely
+            const v = (k) => row[k] || '';
+            
+            tr.innerHTML = `
+                <td class="px-3 py-2 whitespace-nowrap">${v('Parent')}</td>
+                <td class="px-3 py-2">${v('ParentDescription')}</td>
+                <td class="px-3 py-2 whitespace-nowrap text-xs">${v('Plant')}</td>
+                <td class="px-3 py-2 whitespace-nowrap text-center">${v('BOM_USAGE')}</td>
+                <td class="px-3 py-2 whitespace-nowrap text-center">${v('ALTERNATIVE')}</td>
+                <td class="px-3 py-2 whitespace-nowrap font-semibold ${getActionColor(v('ACTION'))}">${v('ACTION')}</td>
+                <td class="px-3 py-2 whitespace-nowrap font-mono">${v('COMPONENT')}</td>
+                <td class="px-3 py-2">${v('ComponentDescription')}</td>
+                <td class="px-3 py-2 whitespace-nowrap font-mono">${v('COMP_QTY')}</td>
+                <td class="px-3 py-2 whitespace-nowrap">${v('COMP_UNIT')}</td>
+                <td class="px-3 py-2 whitespace-nowrap">${v('BASE_QUAN')}</td>
+            `;
+            tableBody.appendChild(tr);
+        });
+    }
+
+    function getActionColor(action) {
+        if (action.startsWith('DEL')) return 'text-red-600';
+        if (action.startsWith('ADD')) return 'text-green-600';
+        if (action.startsWith('CHG')) return 'text-blue-600';
+        return 'text-slate-600';
+    }
+
+    // --- Logic Helpers ---
+
+    function createRow(bomRow, action, component, desc, qty) {
+        // Handle various CSV column names for mapping
+        // Need to be robust against "Child", "CHILD", "P.DESC", "L0ALT"
+        return {
+            Parent: bomRow['PARENT'] || bomRow['L0'], // Fallback if Parent column missing
+            ParentDescription: bomRow['P.DESC'] || bomRow['L0DESC'],
+            Plant: PLANT_VAL,
+            BOM_USAGE: USAGE_VAL,
+            ALTERNATIVE: bomRow['L0ALT'] || bomRow['P.ALT'] || '01', // Default 01 if missing
+            ACTION: action,
+            COMPONENT: component,
+            ComponentDescription: desc,
+            COMP_QTY: qty,
+            COMP_UNIT: bomRow['UOM'] || bomRow['COMP_UNIT'],
+            BASE_QUAN: bomRow['BASE_QTY'] || bomRow['BASE_QUAN']
+        };
+    }
+
+    function run1to1() {
+        const oldPart = document.getElementById('oldPartNum').value.trim();
+        const newPart = document.getElementById('newPartNum').value.trim();
+        const newDesc = document.getElementById('newDesc').value.trim();
+
+        if (!oldPart || !newPart) return alert("Please enter part numbers.");
+
+        const matches = masterBOM.filter(row => (row['CHILD'] === oldPart || row['Child'] === oldPart));
+
+        matches.forEach(row => {
+            // DEL Row
+            generatedData.push(createRow(
+                row, 
+                "DEL - Remove Part", 
+                oldPart, 
+                row['CHILD DESC'] || row['CHILD_DESC'], // Try variations
+                row['QTY_PER'] || row['QTY']
+            ));
+            // ADD Row
+            generatedData.push(createRow(
+                row, 
+                "ADD - Add Part", 
+                newPart, 
+                newDesc, 
+                row['QTY_PER'] || row['QTY'] // Keep same qty
+            ));
+        });
+    }
+
+    function runSameQtyAll() {
+        const part = document.getElementById('sqPartNum').value.trim();
+        const newQty = document.getElementById('sqNewQty').value.trim();
+
+        if (!part || !newQty) return alert("Please fill all fields.");
+
+        const matches = masterBOM.filter(row => row['CHILD'] === part);
+
+        matches.forEach(row => {
+            generatedData.push(createRow(
+                row,
+                "CHG - Update QTY",
+                part,
+                row['CHILD DESC'],
+                newQty
+            ));
+        });
+    }
+
+    function runSameQtySelect() {
+        const part = document.getElementById('sqsPartNum').value.trim();
+        const newQty = document.getElementById('sqsNewQty').value.trim();
+        const skusRaw = document.getElementById('sqsSkus').value;
+        
+        if (!part || !newQty || !skusRaw) return alert("Please fill all fields.");
+
+        // Split SKUs by newline or comma and clean
+        const affectedSKUs = skusRaw.split(/[\n,]+/).map(s => s.trim()).filter(s => s);
+
+        const matches = masterBOM.filter(row => 
+            row['CHILD'] === part && 
+            affectedSKUs.includes(row['L0'])
+        );
+
+        matches.forEach(row => {
+            generatedData.push(createRow(
+                row,
+                "CHG - Update QTY",
+                part,
+                row['CHILD DESC'],
+                newQty
+            ));
+        });
+    }
+
+    function runDiffQtySelect() {
+        const part = document.getElementById('dqsPartNum').value.trim();
+        const mappingRaw = document.getElementById('dqsMapping').value;
+
+        if (!part || !mappingRaw) return alert("Please fill all fields.");
+
+        // Parse Text Area (Tab or comma separated)
+        const mapping = {};
+        mappingRaw.split('\n').forEach(line => {
+            if (!line.trim()) return;
+            // Split by tab (Excel paste) or comma
+            const parts = line.split(/[\t,]+/);
+            if (parts.length >= 2) {
+                const sku = parts[0].trim();
+                const qty = parts[parts.length - 1].trim(); // Take last element as qty to be safe
+                if (sku) mapping[sku] = qty;
+            }
+        });
+
+        const matches = masterBOM.filter(row => 
+            row['CHILD'] === part && 
+            mapping.hasOwnProperty(row['L0'])
+        );
+
+        matches.forEach(row => {
+            generatedData.push(createRow(
+                row,
+                "CHG - Update QTY",
+                part,
+                row['CHILD DESC'],
+                mapping[row['L0']] // Use specific Qty
+            ));
+        });
+    }
+
+    // --- Export ---
+    function downloadCSV() {
+        if (!generatedData.length) return;
+        
+        const csv = Papa.unparse(generatedData);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "BOM_Change_Reference.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+</script>
+</body>
+</html>
